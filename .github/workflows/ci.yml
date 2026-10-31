@@ -7,6 +7,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Backend Build, Lint & Test
@@ -90,6 +93,7 @@ jobs:
       - name: Run Vitest Test Suite
         env:
           DATABASE_URL: postgresql://loopbill:loopbill_secret@localhost:5432/loopbill_test?schema=public
+          TEST_DATABASE_URL: postgresql://loopbill_app:loopbill_app_secret@localhost:5432/loopbill_test?schema=public
           TEST_APP_DATABASE_URL: postgresql://loopbill_app:loopbill_app_secret@localhost:5432/loopbill_test?schema=public
           JWT_SECRET: ci_test_jwt_secret_min_32_characters_long_ci
           COOKIE_SECRET: ci_test_cookie_secret_16
