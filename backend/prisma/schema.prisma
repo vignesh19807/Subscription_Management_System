@@ -1,0 +1,494 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------
+// ENUMS
+// ----------------------------------------------------
+
+enum UserRole {
+  ADMIN
+  STAFF
+  CUSTOMER
+}
+
+enum ProductType {
+  SERVICE
+  ADDON
+  STANDARD
+}
+
+enum BillingInterval {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum DiscountScope {
+  PRODUCT
+  SUBSCRIPTION
+}
+
+enum SubscriptionStatus {
+  DRAFT
+  QUOTATION
+  CONFIRMED
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  CONFIRMED
+  PAID
+  CANCELLED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CARD
+  UPI
+  CASH
+  CHEQUE
+}
+
+enum PaymentStatus {
+  COMPLETED
+  REVERSED
+}
+
+enum EmailType {
+  PASSWORD_RESET
+  INVOICE_NOTICE
+  GENERAL
+}
+
+// ----------------------------------------------------
+// USERS & AUTHENTICATION
+// ----------------------------------------------------
+
+model User {
+  id                String    @id @default(uuid()) @db.Uuid
+  email             String    @unique @db.VarChar(255)
+  passwordHash      String    @map("password_hash") @db.VarChar(255)
+  fullName          String    @map("full_name") @db.VarChar(255)
+  role              UserRole  @default(CUSTOMER)
+  isActive          Boolean   @default(true) @map("is_active")
+  passwordChangedAt DateTime? @map("password_changed_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  subscriptions       Subscription[]
+  invoices            Invoice[]
+  payments            Payment[]            @relation("CustomerPayments")
+  recordedPayments    Payment[]            @relation("PaymentRecorder")
+  resetTokens         PasswordResetToken[]
+  emailLogs           EmailLog[]
+  auditLogs           AuditLog[]
+
+  @@map("users")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  isUsed    Boolean   @default(false) @map("is_used")
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+// ----------------------------------------------------
+// PRODUCT CATALOG & VARIANTS
+// ----------------------------------------------------
+
+model Product {
+  id          String      @id @default(uuid()) @db.Uuid
+  name        String      @db.VarChar(255)
+  description String?     @db.Text
+  productType ProductType @default(STANDARD) @map("product_type")
+  salesPrice  Decimal     @map("sales_price") @db.Decimal(12, 2)
+  costPrice   Decimal     @map("cost_price") @db.Decimal(12, 2)
+  notes       String?     @db.Text
+  isActive    Boolean     @default(true) @map("is_active")
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  variants               ProductVariant[]
+  subscriptionLines      SubscriptionLine[]
+  templateLines          QuotationTemplateLine[]
+  invoiceLines           InvoiceLine[]
+  discountRules          DiscountRule[]
+
+  @@map("products")
+}
+
+model ProductVariant {
+  id             String   @id @default(uuid()) @db.Uuid
+  productId      String   @map("product_id") @db.Uuid
+  attributeName  String   @map("attribute_name") @db.VarChar(100)
+  attributeValue String   @map("attribute_value") @db.VarChar(100)
+  priceDelta     Decimal  @default(0.00) @map("price_delta") @db.Decimal(12, 2)
+  sku            String?  @unique @db.VarChar(100)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  product                Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  subscriptionLines      SubscriptionLine[]
+  templateLines          QuotationTemplateLine[]
+  invoiceLines           InvoiceLine[]
+
+  @@index([productId])
+  @@map("product_variants")
+}
+
+// ----------------------------------------------------
+// PLANS, TAXES & DISCOUNTS
+// ----------------------------------------------------
+
+model Plan {
+  id            String          @id @default(uuid()) @db.Uuid
+  name          String          @db.VarChar(255)
+  description   String?         @db.Text
+  billingInterval BillingInterval @default(MONTHLY) @map("billing_interval")
+  intervalCount Int             @default(1) @map("interval_count")
+  planPrice     Decimal         @default(0.00) @map("plan_price") @db.Decimal(12, 2)
+  minQuantity   Int             @default(1) @map("min_quantity")
+  validFrom     DateTime?       @map("valid_from") @db.Date
+  validTo       DateTime?       @map("valid_to") @db.Date
+  autoClose     Boolean         @default(false) @map("auto_close")
+  closableEarly Boolean         @default(false) @map("closable_early")
+  pausable      Boolean         @default(true) @map("pausable")
+  renewable     Boolean         @default(true) @map("renewable")
+  isActive      Boolean         @default(true) @map("is_active")
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  subscriptions      Subscription[]
+  quotationTemplates QuotationTemplate[]
+
+  @@map("plans")
+}
+
+model TaxRule {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String   @db.VarChar(100)
+  rate       Decimal  @map("rate") @db.Decimal(5, 2) // e.g. 18.00%
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  subscriptionLines SubscriptionLine[]
+  invoiceLines      InvoiceLine[]
+  templateLines     QuotationTemplateLine[]
+
+  @@map("tax_rules")
+}
+
+model DiscountRule {
+  id                String        @id @default(uuid()) @db.Uuid
+  code              String        @unique @db.VarChar(50)
+  name              String        @db.VarChar(255)
+  discountType      DiscountType  @default(PERCENTAGE) @map("discount_type")
+  scope             DiscountScope @default(PRODUCT)
+  productId         String?       @map("product_id") @db.Uuid
+  value             Decimal       @db.Decimal(12, 2) // e.g. 10.00% or ₹500.00
+  minPurchaseAmount Decimal?      @map("min_purchase_amount") @db.Decimal(12, 2)
+  minQuantity       Int?          @map("min_quantity")
+  startDate         DateTime?     @map("start_date") @db.Timestamptz(6)
+  endDate           DateTime?     @map("end_date") @db.Timestamptz(6)
+  maxUses           Int?          @map("max_uses")
+  usedCount         Int           @default(0) @map("used_count")
+  isActive          Boolean       @default(true) @map("is_active")
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  product           Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+  subscriptionLines SubscriptionLine[]
+  invoiceLines      InvoiceLine[]
+
+  @@index([code])
+  @@index([productId])
+  @@map("discount_rules")
+}
+
+// ----------------------------------------------------
+// QUOTATION TEMPLATES
+// ----------------------------------------------------
+
+model QuotationTemplate {
+  id           String                  @id @default(uuid()) @db.Uuid
+  name         String                  @db.VarChar(255)
+  description  String?                 @db.Text
+  planId       String?                 @map("plan_id") @db.Uuid
+  validityDays Int                     @default(30) @map("validity_days")
+  terms        String?                 @db.Text
+  isActive     Boolean                 @default(true) @map("is_active")
+  createdAt    DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  plan         Plan?                   @relation(fields: [planId], references: [id], onDelete: SetNull)
+  lines        QuotationTemplateLine[]
+  subscriptions Subscription[]
+
+  @@map("quotation_templates")
+}
+
+model QuotationTemplateLine {
+  id         String          @id @default(uuid()) @db.Uuid
+  templateId String          @map("template_id") @db.Uuid
+  productId  String          @map("product_id") @db.Uuid
+  variantId  String?         @map("variant_id") @db.Uuid
+  quantity   Int             @default(1)
+  unitPrice  Decimal         @map("unit_price") @db.Decimal(12, 2)
+  taxRuleId  String?         @map("tax_rule_id") @db.Uuid
+  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  template   QuotationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  product    Product           @relation(fields: [productId], references: [id], onDelete: Restrict)
+  variant    ProductVariant?   @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  taxRule    TaxRule?          @relation(fields: [taxRuleId], references: [id], onDelete: SetNull)
+
+  @@index([templateId])
+  @@map("quotation_template_lines")
+}
+
+// ----------------------------------------------------
+// SUBSCRIPTIONS & LIFECYCLE
+// ----------------------------------------------------
+
+model Subscription {
+  id                  String             @id @default(uuid()) @db.Uuid
+  subscriptionNumber  String             @unique @map("subscription_number") @db.VarChar(50) // e.g. SUB-2026-0001
+  customerId          String             @map("customer_id") @db.Uuid
+  planId              String             @map("plan_id") @db.Uuid
+  templateId          String?            @map("template_id") @db.Uuid
+  status              SubscriptionStatus @default(DRAFT)
+  startDate           DateTime           @map("start_date") @db.Date
+  expiryDate          DateTime?          @map("expiry_date") @db.Date
+  quotationValidUntil DateTime?          @map("quotation_valid_until") @db.Date
+  nextBillingDate     DateTime           @map("next_billing_date") @db.Date
+  paymentTermsDays    Int                @default(15) @map("payment_terms_days")
+  notes               String?            @db.Text
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  customer            User               @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  plan                Plan               @relation(fields: [planId], references: [id], onDelete: Restrict)
+  template            QuotationTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  lines               SubscriptionLine[]
+  events              SubscriptionEvent[]
+  invoices            Invoice[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([nextBillingDate])
+  @@index([status, nextBillingDate])
+  @@index([customerId, status])
+  @@map("subscriptions")
+}
+
+model SubscriptionLine {
+  id             String         @id @default(uuid()) @db.Uuid
+  subscriptionId String         @map("subscription_id") @db.Uuid
+  productId      String         @map("product_id") @db.Uuid
+  variantId      String?        @map("variant_id") @db.Uuid
+  isAddon        Boolean        @default(false) @map("is_addon")
+  isActive       Boolean        @default(true) @map("is_active")
+  quantity       Int            @default(1)
+  unitPrice      Decimal        @map("unit_price") @db.Decimal(12, 2)
+  subtotal       Decimal        @default(0.00) @map("subtotal") @db.Decimal(12, 2)
+  taxRuleId      String?        @map("tax_rule_id") @db.Uuid
+  discountRuleId String?        @map("discount_rule_id") @db.Uuid
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  subscription   Subscription   @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  product        Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
+  variant        ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  taxRule        TaxRule?       @relation(fields: [taxRuleId], references: [id], onDelete: SetNull)
+  discountRule   DiscountRule?  @relation(fields: [discountRuleId], references: [id], onDelete: SetNull)
+
+  @@index([subscriptionId])
+  @@map("subscription_lines")
+}
+
+model SubscriptionEvent {
+  id             String             @id @default(uuid()) @db.Uuid
+  subscriptionId String             @map("subscription_id") @db.Uuid
+  fromStatus     SubscriptionStatus? @map("from_status")
+  toStatus       SubscriptionStatus @map("to_status")
+  reason         String?            @db.Text
+  performedBy    String?            @map("performed_by") @db.VarChar(255)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  subscription   Subscription       @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@map("subscription_events")
+}
+
+// ----------------------------------------------------
+// INVOICES & IMMUTABLE SNAPSHOT LINE ITEMS
+// ----------------------------------------------------
+
+model Invoice {
+  id                 String        @id @default(uuid()) @db.Uuid
+  invoiceNumber      String        @unique @map("invoice_number") @db.VarChar(50) // e.g. INV-2026-0001
+  subscriptionId     String        @map("subscription_id") @db.Uuid
+  customerId         String        @map("customer_id") @db.Uuid
+  issueDate          DateTime      @map("issue_date") @db.Date
+  dueDate            DateTime      @map("due_date") @db.Date
+  billingPeriodStart DateTime      @map("billing_period_start") @db.Date
+  billingPeriodEnd   DateTime      @map("billing_period_end") @db.Date
+  subtotal           Decimal       @db.Decimal(12, 2)
+  taxTotal           Decimal       @map("tax_total") @db.Decimal(12, 2)
+  discountTotal      Decimal       @default(0.00) @map("discount_total") @db.Decimal(12, 2)
+  totalAmount        Decimal       @map("total_amount") @db.Decimal(12, 2)
+  amountPaid         Decimal       @default(0.00) @map("amount_paid") @db.Decimal(12, 2)
+  status             InvoiceStatus @default(DRAFT)
+  notes              String?       @db.Text
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  subscription       Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  customer           User          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  lines              InvoiceLine[]
+  payments           Payment[]
+
+  @@index([customerId])
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([billingPeriodStart])
+  @@index([status, dueDate])
+  @@index([customerId, status])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id                  String          @id @default(uuid()) @db.Uuid
+  invoiceId           String          @map("invoice_id") @db.Uuid
+  productId           String?         @map("product_id") @db.Uuid
+  variantId           String?         @map("variant_id") @db.Uuid
+  productNameSnapshot String          @map("product_name_snapshot") @db.VarChar(255)
+  variantNameSnapshot String?         @map("variant_name_snapshot") @db.VarChar(100)
+  quantity            Int             @default(1)
+  unitPrice           Decimal         @map("unit_price") @db.Decimal(12, 2)
+  subtotal            Decimal         @map("subtotal") @db.Decimal(12, 2)
+  discountAmount      Decimal         @default(0.00) @map("discount_amount") @db.Decimal(12, 2)
+  discountRuleId      String?         @map("discount_rule_id") @db.Uuid
+  taxRuleId           String?         @map("tax_rule_id") @db.Uuid
+  taxRateSnapshot     Decimal         @default(0.00) @map("tax_rate_snapshot") @db.Decimal(5, 2)
+  taxAmount           Decimal         @default(0.00) @map("tax_amount") @db.Decimal(12, 2)
+  lineTotal           Decimal         @map("line_total") @db.Decimal(12, 2)
+  createdAt           DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  invoice             Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product             Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant             ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  taxRule             TaxRule?        @relation(fields: [taxRuleId], references: [id], onDelete: SetNull)
+  discountRule        DiscountRule?   @relation(fields: [discountRuleId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@map("invoice_lines")
+}
+
+// ----------------------------------------------------
+// PAYMENT LEDGER
+// ----------------------------------------------------
+
+model Payment {
+  id             String        @id @default(uuid()) @db.Uuid
+  invoiceId      String        @map("invoice_id") @db.Uuid
+  customerId     String        @map("customer_id") @db.Uuid
+  recordedById   String?       @map("recorded_by") @db.Uuid
+  amount         Decimal       @db.Decimal(12, 2)
+  paymentMethod  PaymentMethod @map("payment_method")
+  paymentDate    DateTime      @default(now()) @map("payment_date") @db.Timestamptz(6)
+  referenceNote  String?       @map("reference_note") @db.VarChar(255)
+  status         PaymentStatus @default(COMPLETED)
+  idempotencyKey String?       @unique @map("idempotency_key") @db.VarChar(100)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  invoice        Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  customer       User          @relation("CustomerPayments", fields: [customerId], references: [id], onDelete: Restrict)
+  recorder       User?         @relation("PaymentRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([customerId])
+  @@index([recordedById])
+  @@map("payments")
+}
+
+// ----------------------------------------------------
+// EMAIL OUTBOX & AUDIT LOGS
+// ----------------------------------------------------
+
+model EmailLog {
+  id             String    @id @default(uuid()) @db.Uuid
+  recipientId    String?   @map("recipient_id") @db.Uuid
+  recipientEmail String    @map("recipient_email") @db.VarChar(255)
+  subject        String    @db.VarChar(255)
+  bodyHtml       String    @map("body_html") @db.Text
+  actionLink     String?   @map("action_link") @db.VarChar(255)
+  emailType      EmailType @default(GENERAL) @map("email_type")
+  sentAt         DateTime  @default(now()) @map("sent_at") @db.Timestamptz(6)
+
+  // Relations
+  recipient      User?     @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+
+  @@index([recipientEmail])
+  @@map("email_logs")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  action      String   @db.VarChar(100)
+  entityName  String   @map("entity_name") @db.VarChar(100)
+  entityId    String?  @map("entity_id") @db.VarChar(100)
+  details     String?  @db.Text
+  ipAddress   String?  @map("ip_address") @db.VarChar(50)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityName, entityId])
+  @@map("audit_logs")
+}
