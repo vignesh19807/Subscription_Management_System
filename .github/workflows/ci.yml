@@ -1,3 +1,4 @@
+
 name: Backend CI
 
 on:
@@ -50,6 +51,37 @@ jobs:
       - name: ESLint Check
         run: npm run lint
 
+      - name: Configure runtime database role
+        env:
+          DATABASE_URL: postgresql://loopbill:loopbill_secret@localhost:5432/loopbill_test?schema=public
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT FROM pg_roles WHERE rolname = 'loopbill_app'
+            ) THEN
+              CREATE ROLE loopbill_app
+                WITH LOGIN PASSWORD 'loopbill_app_secret'
+                NOSUPERUSER NOCREATEDB NOCREATEROLE;
+            ELSE
+              ALTER ROLE loopbill_app
+                WITH LOGIN PASSWORD 'loopbill_app_secret'
+                NOSUPERUSER NOCREATEDB NOCREATEROLE;
+            END IF;
+          END
+          $$;
+
+          GRANT CONNECT ON DATABASE loopbill_test TO loopbill_app;
+          GRANT USAGE ON SCHEMA public TO loopbill_app;
+
+          ALTER DEFAULT PRIVILEGES FOR ROLE loopbill IN SCHEMA public
+            GRANT SELECT, INSERT, UPDATE ON TABLES TO loopbill_app;
+
+          ALTER DEFAULT PRIVILEGES FOR ROLE loopbill IN SCHEMA public
+            GRANT USAGE, SELECT ON SEQUENCES TO loopbill_app;
+          SQL
+
       - name: Run Prisma Migrations
         env:
           DATABASE_URL: postgresql://loopbill:loopbill_secret@localhost:5432/loopbill_test?schema=public
@@ -58,6 +90,7 @@ jobs:
       - name: Run Vitest Test Suite
         env:
           DATABASE_URL: postgresql://loopbill:loopbill_secret@localhost:5432/loopbill_test?schema=public
+          TEST_APP_DATABASE_URL: postgresql://loopbill_app:loopbill_app_secret@localhost:5432/loopbill_test?schema=public
           JWT_SECRET: ci_test_jwt_secret_min_32_characters_long_ci
           COOKIE_SECRET: ci_test_cookie_secret_16
           NODE_ENV: test
