@@ -186,4 +186,3 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     </Modal>
   );
 };
-

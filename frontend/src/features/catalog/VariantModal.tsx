@@ -190,4 +190,3 @@ export const VariantModal: React.FC<VariantModalProps> = ({
     </Modal>
   );
 };
-

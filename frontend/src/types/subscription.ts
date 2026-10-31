@@ -37,4 +37,3 @@ export interface Subscription {
   quotationId?: string | null;
   lines: SubscriptionLine[];
 }
-

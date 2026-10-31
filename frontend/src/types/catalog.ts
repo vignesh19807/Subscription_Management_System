@@ -18,4 +18,3 @@ export interface Product {
   isActive: boolean;
   variants?: ProductVariant[];
 }
-

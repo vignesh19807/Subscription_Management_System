@@ -99,4 +99,3 @@ export function calculateOrderSummary(lines: LineCalculationResult[]): SummaryCa
     formattedGrandTotal: formatINR(grandTotal),
   };
 }
-

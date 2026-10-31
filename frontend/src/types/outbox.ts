@@ -13,4 +13,3 @@ export interface EmailOutboxItem {
   sentAt?: string | null;
   createdAt: string;
 }
-

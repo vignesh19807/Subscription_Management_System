@@ -231,4 +231,3 @@ export const OutboxDrawer: React.FC<OutboxDrawerProps> = ({ isOpen, onClose }) =
     </div>
   );
 };
-

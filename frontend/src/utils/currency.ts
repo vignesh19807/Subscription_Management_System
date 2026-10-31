@@ -14,11 +14,11 @@ export function formatINR(value: string | number | Decimal): string {
   const parts = formatted.split('.');
   const intPart = parts[0] ?? '0';
   const decPart = parts[1] ?? '00';
-  
+
   // Format Indian Numbering System: e.g. 1,00,000.00
   const isNegative = intPart.startsWith('-');
   const absInt = isNegative ? intPart.slice(1) : intPart;
-  
+
   let result = '';
   if (absInt.length <= 3) {
     result = absInt;
@@ -28,7 +28,7 @@ export function formatINR(value: string | number | Decimal): string {
     const withCommas = otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ',');
     result = `${withCommas},${lastThree}`;
   }
-  
+
   return `${isNegative ? '-' : ''}₹${result}.${decPart}`;
 }
 
@@ -43,4 +43,3 @@ export function subtractCurrency(a: string | number | Decimal, b: string | numbe
 export function multiplyCurrency(a: string | number | Decimal, quantity: number | string): Decimal {
   return toDecimal(a).times(toDecimal(quantity));
 }
-

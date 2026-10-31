@@ -30,4 +30,3 @@ As the lead frontend engineer and developer for LoopBill, adhere strictly to the
 - Follow every rule without deviation.
 - Explicitly prioritize performance, code simplicity, and maintainability.
 - Report any trade-offs to the user before implementing them.
-

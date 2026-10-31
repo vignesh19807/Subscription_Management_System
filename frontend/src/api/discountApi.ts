@@ -31,4 +31,3 @@ export const discountApi = {
     return res.data;
   },
 };
-

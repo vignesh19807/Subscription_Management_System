@@ -24,4 +24,3 @@ export const paymentApi = {
     return res.data;
   },
 };
-

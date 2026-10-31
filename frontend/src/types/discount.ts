@@ -17,4 +17,3 @@ export interface DiscountRule {
   isActive: boolean;
   createdAt: string;
 }
-

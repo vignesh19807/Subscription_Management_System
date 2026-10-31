@@ -19,4 +19,3 @@ export interface Payment {
   referenceNote?: string;
   status: PaymentStatus;
 }
-

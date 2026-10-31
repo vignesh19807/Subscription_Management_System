@@ -40,4 +40,3 @@ export interface Quotation {
   createdAt: string;
   convertedSubscriptionId?: string | null;
 }
-

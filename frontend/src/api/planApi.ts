@@ -36,4 +36,3 @@ export const planApi = {
     return res.data;
   },
 };
-

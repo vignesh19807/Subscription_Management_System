@@ -12,4 +12,3 @@ export function useResponseLatency(): number | null {
 
   return latency;
 }
-

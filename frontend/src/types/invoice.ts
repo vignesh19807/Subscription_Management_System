@@ -29,4 +29,3 @@ export interface Invoice {
   status: InvoiceStatus;
   lines: InvoiceLine[];
 }
-

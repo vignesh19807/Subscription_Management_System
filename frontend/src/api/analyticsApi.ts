@@ -33,4 +33,3 @@ export const analyticsApi = {
     return res.data;
   },
 };
-

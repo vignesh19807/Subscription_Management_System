@@ -15,4 +15,3 @@ export interface BillingPlan {
   description?: string;
   isActive: boolean;
 }
-

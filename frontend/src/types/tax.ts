@@ -9,4 +9,3 @@ export interface TaxRule {
   isActive: boolean;
   createdAt: string;
 }
-

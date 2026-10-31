@@ -266,4 +266,3 @@ export const PlanModal: React.FC<PlanModalProps> = ({
     </Modal>
   );
 };
-

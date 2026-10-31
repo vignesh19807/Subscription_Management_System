@@ -31,4 +31,3 @@ export const taxApi = {
     return res.data;
   },
 };
-

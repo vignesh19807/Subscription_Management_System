@@ -165,4 +165,3 @@ export const TaxModal: React.FC<TaxModalProps> = ({
     </Modal>
   );
 };
-

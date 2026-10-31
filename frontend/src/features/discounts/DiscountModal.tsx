@@ -242,4 +242,3 @@ export const DiscountModal: React.FC<DiscountModalProps> = ({
     </Modal>
   );
 };
-

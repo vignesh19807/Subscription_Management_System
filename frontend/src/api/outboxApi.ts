@@ -16,4 +16,3 @@ export const outboxApi = {
     return res.data;
   },
 };
-

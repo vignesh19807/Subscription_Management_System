@@ -115,4 +115,3 @@ export async function apiClient<T>(
     throw new HttpClientError(message, 'NETWORK_ERROR', 0);
   }
 }
-

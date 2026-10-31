@@ -11,4 +11,3 @@ export interface Customer {
   totalPaid: string;
   outstandingBalance: string;
 }
-
